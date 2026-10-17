@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoTracker - Ultimate Garage & Fleet Hub</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        html, body { 
+            background-color: #f4f6f9 !important; 
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            color: #1e293b; 
+        }
+        .navbar { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 1rem 0; }
+        .nav-glass-badge { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.15); }
+        .card { border-radius: 16px; border: 1px solid #e2e8f0; background-color: #ffffff; box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.04); transition: all 0.25s ease; }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px -4px rgba(0, 0, 0, 0.07); }
+        .nav-pills .nav-link { font-weight: 600; color: #64748b; border-radius: 10px; padding: 0.6rem 1.2rem; }
+        .nav-pills .nav-link.active { background-color: #0f172a; color: #fff; }
+        .trim-chip { cursor: pointer; transition: all 0.15s; border-radius: 8px; font-weight: 500; }
+        .trim-chip:hover { transform: scale(1.04); opacity: 0.9; }
+        .car-card-img { height: 210px; object-fit: cover; width: 100%; background: #e2e8f0; }
+        .brand-logo { width: 32px; height: 32px; object-fit: contain; }
+        .vin-box { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: white; border-radius: 16px; }
+        .form-control, .form-select { border-radius: 10px; border: 1px solid #cbd5e1; padding: 0.6rem 0.9rem; }
+        .form-control:focus, .form-select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
+        .badge-soft { background-color: #eff6ff; color: #1d4ed8; font-weight: 600; padding: 0.35em 0.65em; border-radius: 6px; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark mb-4 shadow-sm">
+    <div class="container">
+        <a class="navbar-brand fw-bold d-flex align-items-center gap-2 fs-4" href="#">
+            <i class="fa-solid fa-car-side text-primary"></i>
+            <span>Auto<span class="text-primary">Tracker</span></span>
+        </a>
+        <div class="d-flex text-white align-items-center gap-2 nav-glass-badge px-3 py-15 rounded-pill">
+            <i class="fa-solid fa-gas-pump text-warning"></i>
+            <span id="headerGasInfo" class="small fw-semibold">Loading regional rate...</span>
+        </div>
+    </div>
+</nav>
+
+<div class="container pb-5">
+    <div class="row mb-4">
+        <div class="col-12">
+            <ul class="nav nav-pills nav-fill bg-white p-2 rounded-4 shadow-sm border" id="mainTabs">
+                <li class="nav-item">
+                    <button class="nav-link active" data-tab="garageTab" onclick="showTab('garageTab')"><i class="fa-solid fa-warehouse me-2"></i>My Garage</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-tab="pickerTab" onclick="showTab('pickerTab')"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Add / Configurator</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-tab="gasTab" onclick="showTab('gasTab')"><i class="fa-solid fa-gear me-2"></i>Regional & Currency Settings</button>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- TAB 1: GARAGE -->
+    <div id="garageTab" class="tab-content">
+        <div id="garageList" class="row"></div>
+    </div>
+
+    <!-- TAB 2: CAR PICKER & VIN DECODER -->
+    <div id="pickerTab" class="tab-content d-none">
+        <div class="row justify-content-center">
+            <div class="col-lg-9">
+                
+                <!-- Manual Configurator -->
+                <div class="card p-4 mb-4">
+                    <h5 class="fw-bold mb-3"><i class="fa-solid fa-sliders text-primary me-2"></i>Vehicle Details & Specs</h5>
+                    
+                    <form id="carPickerForm" onsubmit="saveCar(event)">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Year</label>
+                                <input type="number" id="pickYear" class="form-control" value="2005" min="1900" max="2027" required onchange="onMakeOrYearChange()">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Make</label>
+                                <input type="text" id="pickMake" class="form-control" placeholder="e.g. Audi, BMW, VW" required onkeyup="onMakeOrYearChange()">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Model</label>
+                                <input type="text" id="pickModel" class="form-control" list="modelOptions" autocomplete="off" placeholder="Enter Make & Year first..." required onchange="onModelSelect()">
+                                <datalist id="modelOptions"></datalist>
+                            </div>
+
+                            <!-- Live Media Preview -->
+                            <div id="previewContainer" class="col-12 d-none">
+                                <div class="p-3 bg-light rounded-3 d-flex align-items-center gap-3 border">
+                                    <img id="previewLogo" src="" class="brand-logo" onerror="this.style.display='none'">
+                                    <div class="flex-grow-1">
+                                        <div class="fw-bold" id="previewTitle"></div>
+                                        <div class="small text-muted" id="previewSubtitle">Auto-fetched high-res media preview</div>
+                                    </div>
+                                    <img id="previewImg" src="" style="height: 75px; border-radius: 8px; object-fit: cover;" onerror="this.style.display='none'">
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label fw-semibold mb-1">Trims, Engine Specs & Packages</label>
+                                <div id="trimSuggestions" class="d-flex flex-wrap gap-1 mb-2">
+                                    <span class="text-muted small">Select a model above to load engine/trim specs...</span>
+                                </div>
+                                <input type="text" id="pickTrim" class="form-control" placeholder="Click tags above or enter custom specs (e.g. 2.0 TDI, S-Line, Quattro)">
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Vehicle Notes & Specifications</label>
+                                <textarea id="pickNotes" class="form-control" rows="3" placeholder="Vehicle notes, registration, drivetrain specs, color, custom modifications..."></textarea>
+                            </div>
+
+                            <input type="hidden" id="pickImageUrl">
+                            <input type="hidden" id="pickLogoUrl">
+
+                            <div class="col-12 mt-4">
+                                <button type="submit" class="btn btn-primary w-100 py-25 fw-bold fs-6"><i class="fa-solid fa-plus me-1"></i>Save Car to My Garage</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- VIN Decoder Card -->
+                <div class="vin-box p-4 shadow">
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <i class="fa-solid fa-barcode fa-2x text-primary"></i>
+                        <div>
+                            <h5 class="fw-bold mb-0">NHTSA VIN Instant Decoder</h5>
+                            <small class="text-white-50">Paste a 17-digit VIN to auto-fill exact specs, engine, drivetrain, photos & logo above</small>
+                        </div>
+                    </div>
+                    <div class="input-group mt-3">
+                        <input type="text" id="vinInput" class="form-control form-control-lg bg-white" placeholder="Enter 17-character VIN (e.g. WAUZZZ...)" maxlength="17" onkeydown="if(event.key==='Enter'){decodeVin()}">
+                        <button class="btn btn-primary px-4 fw-bold" onclick="decodeVin()"><i class="fa-solid fa-bolt me-1"></i> Decode VIN</button>
+                    </div>
+                    <div id="vinSpinner" class="d-none text-center mt-3"><div class="spinner-border spinner-border-sm text-light"></div> <small>Querying NHTSA API...</small></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: REGIONAL & CURRENCY SETTINGS -->
+    <div id="gasTab" class="tab-content d-none">
+        <div class="row justify-content-center">
+            <div class="col-md-7">
+                <div class="card p-4">
+                    <h5 class="fw-bold mb-3"><i class="fa-solid fa-globe text-primary me-2"></i>Regional & Currency Preferences</h5>
+                    <form onsubmit="saveSettings(event)">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Town or Region Name</label>
+                            <input type="text" id="settingRegion" class="form-control" placeholder="e.g., Central Region" required>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Fuel Unit Preference</label>
+                                <select id="settingUnit" class="form-select" required>
+                                    <option value="L">Liters (L) & Kilometers (km)</option>
+                                    <option value="Gal">Gallons (Gal) & Miles (mi)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Currency Symbol</label>
+                                <select id="settingCurrency" class="form-select" required>
+                                    <option value="$">$ (USD)</option>
+                                    <option value="€">€ (EUR)</option>
+                                    <option value="₴">₴ (UAH)</option>
+                                    <option value="£">£ (GBP)</option>
+                                    <option value="zł">zł (PLN)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Fuel Price per Unit</label>
+                            <input type="number" step="0.001" id="settingGasPrice" class="form-control" placeholder="1.65" required>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100 py-25 fw-bold"><i class="fa-solid fa-floppy-disk me-1"></i>Save Preferences</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ACTION MODAL -->
+<div class="modal fade" id="actionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px; overflow: hidden;">
+            <div class="modal-header bg-dark text-white py-3">
+                <h5 class="modal-title fw-bold" id="modalTitle">Car Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4" id="modalBody"></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let activeCarId = null;
+    let regionalGasPrice = 1.65;
+    let regionalUnit = 'L';
+    let regionalCurrency = '$';
+    let fetchTimeout = null;
+    let activeChart = null;
+    let modelsToken = 0;
+    let previewToken = 0;
+
+    // ---------- helpers ----------
+    // Escape anything coming from the database or an API before putting it in HTML.
+    function esc(value) {
+        return String(value ?? '').replace(/[&<>"']/g, ch => (
+            { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+        ));
+    }
+
+    function localDateStr() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    // fetch + JSON + proper error messages (the old code said "saved!" even when the server failed)
+    async function api(url, options) {
+        let res;
+        try {
+            res = await fetch(url, options);
+        } catch (e) {
+            throw new Error('Cannot reach the server. Is app.py still running?');
+        }
+        let data = null;
+        try { data = await res.json(); } catch (e) { /* not JSON */ }
+        if (!res.ok) throw new Error((data && data.error) || `Request failed (${res.status})`);
+        return data;
+    }
+
+    function sendJson(url, method, body) {
+        return api(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+    }
+
+    function showError(prefix, err) { alert(`${prefix}: ${err.message || err}`); }
+    function carPlaceholder() {
+        return '<div class="car-card-img d-flex align-items-center justify-content-center text-secondary fs-3"><i class="fa-solid fa-car"></i></div>';
+    }
+    function showModal() { bootstrap.Modal.getOrCreateInstance(document.getElementById('actionModal')).show(); }
+    function hideModal() {
+        const m = bootstrap.Modal.getInstance(document.getElementById('actionModal'));
+        if (m) m.hide();
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById('pickYear').max = new Date().getFullYear() + 1;
+        loadSettings();
+        loadGarage();
+    });
+
+    function showTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('d-none'));
+        document.getElementById(tabId).classList.remove('d-none');
+        document.querySelectorAll('#mainTabs .nav-link').forEach(el => el.classList.toggle('active', el.dataset.tab === tabId));
+    }
+
+    async function loadSettings() {
+        try {
+            const data = await api('/api/settings');
+            regionalGasPrice = parseFloat(data.gas_price) || 1.65;
+            regionalUnit = data.unit || 'L';
+            regionalCurrency = data.currency || '$';
+
+            document.getElementById('settingRegion').value = data.region || '';
+            document.getElementById('settingGasPrice').value = regionalGasPrice;
+            document.getElementById('settingUnit').value = regionalUnit;
+            document.getElementById('settingCurrency').value = regionalCurrency;
+
+            document.getElementById('headerGasInfo').innerText = `${data.region || 'Region'}: ${regionalCurrency}${regionalGasPrice.toFixed(2)} / ${regionalUnit}`;
+        } catch (err) {
+            console.error(err);
+            document.getElementById('headerGasInfo').innerText = 'Settings unavailable';
+        }
+    }
+
+    async function saveSettings(e) {
+        e.preventDefault();
+        const region = document.getElementById('settingRegion').value;
+        const gas_price = document.getElementById('settingGasPrice').value;
+        const unit = document.getElementById('settingUnit').value;
+        const currency = document.getElementById('settingCurrency').value;
+
+        try {
+            await sendJson('/api/settings', 'POST', { region, gas_price, unit, currency });
+        } catch (err) { showError('Could not save settings', err); return; }
+        alert('Regional settings updated!');
+        loadSettings();
+        loadGarage();
+    }
+
+    async function decodeVin() {
+        const vin = document.getElementById('vinInput').value.trim();
+        if(!vin) { alert('Please enter a VIN'); return; }
+
+        const spinner = document.getElementById('vinSpinner');
+        spinner.classList.remove('d-none');
+        try {
+            const data = await api(`/api/nhtsa/vin/${encodeURIComponent(vin)}`);
+
+            if(data.year) document.getElementById('pickYear').value = data.year;
+            if(data.make) document.getElementById('pickMake').value = data.make;
+            fillModelOptions(data.model ? [data.model] : []);
+            document.getElementById('pickModel').value = data.model || '';
+
+            if(data.trim) document.getElementById('pickTrim').value = data.trim;
+            if(data.summary_notes) document.getElementById('pickNotes').value = data.summary_notes;
+
+            await onModelSelect();
+            alert(`VIN Decoded: ${data.year} ${data.make} ${data.model}`);
+        } catch(err) {
+            alert(err.message || 'Error decoding VIN.');
+        } finally {
+            spinner.classList.add('d-none');
+        }
+    }
+
+    function fillModelOptions(models) {
+        const list = document.getElementById('modelOptions');
+        list.innerHTML = '';
+        models.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m;
+            list.appendChild(opt);
+        });
+    }
+
+    function onMakeOrYearChange() {
+        clearTimeout(fetchTimeout);
+        fetchTimeout = setTimeout(async () => {
+            const make = document.getElementById('pickMake').value.trim();
+            const year = document.getElementById('pickYear').value.trim();
+            if(!make || !year) return;
+
+            const input = document.getElementById('pickModel');
+            const token = ++modelsToken;
+            input.placeholder = 'Loading models...';
+
+            let models = [];
+            try {
+                models = await api(`/api/nhtsa/models?make=${encodeURIComponent(make)}&year=${encodeURIComponent(year)}`);
+            } catch (err) { console.error(err); }
+            if (token !== modelsToken) return;   // a newer request replaced this one
+
+            fillModelOptions(models);
+            input.placeholder = models.length ? 'Pick from the list or type your own' : 'No models found - type your model';
+            if (input.value.trim()) onModelSelect();   // refresh preview for the new make/year
+        }, 300);
+    }
+
+    async function onModelSelect() {
+        const make = document.getElementById('pickMake').value.trim();
+        const model = document.getElementById('pickModel').value.trim();
+        const year = document.getElementById('pickYear').value.trim();
+        if(!make || !model) return;
+
+        const token = ++previewToken;
+        const trimContainer = document.getElementById('trimSuggestions');
+        trimContainer.innerHTML = '<span class="text-muted small">Loading model specs...</span>';
+
+        const q = `make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&year=${encodeURIComponent(year)}`;
+        const [trims, media] = await Promise.all([
+            api(`/api/trims?${q}`).catch(() => []),
+            api(`/api/car-media?${q}`).catch(err => ({ logo: '', image: '', status: 'error', message: err.message }))
+        ]);
+        if (token !== previewToken) return;   // user already picked something else
+
+        trimContainer.innerHTML = '';
+        trims.forEach(t => {
+            const badge = document.createElement('span');
+            badge.className = 'badge bg-secondary trim-chip p-2';
+            badge.innerText = `+ ${t}`;
+            badge.onclick = () => addTrimChip(t);
+            trimContainer.appendChild(badge);
+        });
+
+        document.getElementById('pickImageUrl').value = media.image || '';
+        document.getElementById('pickLogoUrl').value = media.logo || '';
+
+        document.getElementById('previewContainer').classList.remove('d-none');
+        document.getElementById('previewTitle').innerText = `${year} ${make} ${model}`;
+
+        const logoImg = document.getElementById('previewLogo');
+        logoImg.style.display = 'block';
+        logoImg.src = media.logo || '';
+
+        const carImg = document.getElementById('previewImg');
+        if(media.image) {
+            carImg.style.display = 'block';
+            carImg.referrerPolicy = 'no-referrer';
+            carImg.src = media.image;
+        } else {
+            carImg.style.display = 'none';
+        }
+
+        const sub = document.getElementById('previewSubtitle');
+        if (media.status === 'error') sub.innerText = `Photo lookup failed: ${media.message}`;
+        else if (!media.image) sub.innerText = 'No photo found for this car - a placeholder will be used';
+        else if (media.approximate) sub.innerText = 'Closest photo found - it may show a different generation';
+        else sub.innerText = 'Photo and logo found';
+    }
+
+    function addTrimChip(chipText) {
+        const input = document.getElementById('pickTrim');
+        if(input.value.includes(chipText)) return;
+        input.value = input.value.trim() === '' ? chipText : `${input.value}, ${chipText}`;
+    }
+
+    async function saveCar(e) {
+        e.preventDefault();
+        const body = {
+            make: document.getElementById('pickMake').value,
+            model: document.getElementById('pickModel').value,
+            year: document.getElementById('pickYear').value,
+            trim: document.getElementById('pickTrim').value,
+            notes: document.getElementById('pickNotes').value,
+            image_url: document.getElementById('pickImageUrl').value,
+            logo_url: document.getElementById('pickLogoUrl').value
+        };
+        try {
+            await sendJson('/api/cars', 'POST', body);
+        } catch (err) { showError('Could not save car', err); return; }
+
+        previewToken++;
+        document.getElementById('carPickerForm').reset();
+        document.getElementById('modelOptions').innerHTML = '';
+        document.getElementById('trimSuggestions').innerHTML = '<span class="text-muted small">Select a model above to load engine/trim specs...</span>';
+        document.getElementById('previewContainer').classList.add('d-none');
+        alert('Car saved to garage!');
+        loadGarage();
+        showTab('garageTab');
+    }
+
+    async function loadGarage() {
+        const container = document.getElementById('garageList');
+        let cars;
+        try {
+            cars = await api('/api/cars');
+        } catch (err) {
+            container.innerHTML = `<div class="col-12"><div class="alert alert-danger">Could not load your garage: ${esc(err.message)}</div></div>`;
+            return;
+        }
+        container.innerHTML = '';
+
+        if(cars.length === 0) {
+            container.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <i class="fa-solid fa-car fa-4x text-muted mb-3 opacity-50"></i>
+                    <h5 class="fw-bold text-secondary">Your garage is currently empty</h5>
+                    <p class="text-muted">Use the <b>Add / Configurator</b> tab to register your vehicles.</p>
+                </div>`;
+            return;
+        }
+
+        cars.forEach(car => {
+            const card = document.createElement('div');
+            card.className = 'col-md-6 col-lg-4 mb-4';
+            const title = `${car.year} ${car.make} ${car.model}`;
+
+            // if the photo fails to load, swap in the placeholder instead of a broken-image icon
+            const imageHeader = car.image_url
+                ? `<img src="${esc(car.image_url)}" class="car-card-img" alt="Car Photo" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML=carPlaceholder()">`
+                : carPlaceholder();
+
+            card.innerHTML = `
+                <div class="card h-100 overflow-hidden">
+                    ${imageHeader}
+                    <div class="card-body d-flex flex-column p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="d-flex align-items-center gap-2">
+                                ${car.logo_url ? `<img src="${esc(car.logo_url)}" class="brand-logo" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : ''}
+                                <h6 class="fw-bold mb-0 fs-5">${esc(title)}</h6>
+                            </div>
+                            <button class="btn btn-sm btn-light border-0 text-danger rounded-circle p-2" onclick="deleteCar(${Number(car.id)})"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+
+                        ${car.trim ? `<div class="mb-2"><span class="badge badge-soft">${esc(car.trim)}</span></div>` : ''}
+
+                        <div class="mb-3 flex-grow-1">
+                            <label class="form-label small text-muted mb-1 fw-semibold">Notes / Specs</label>
+                            <textarea class="form-control form-control-sm" id="notes-${Number(car.id)}" rows="2">${esc(car.notes || '')}</textarea>
+                            <button class="btn btn-sm btn-light border mt-1 w-100 fw-semibold" onclick="updateNotes(${Number(car.id)})">Save Notes</button>
+                        </div>
+
+                        <div class="d-flex gap-1 mt-auto" data-title="${esc(title)}">
+                            <button class="btn btn-outline-danger btn-sm flex-fill fw-semibold" onclick="openCrashModal(${Number(car.id)}, this.parentElement.dataset.title)">
+                                <i class="fa-solid fa-car-burst me-1"></i>Crashes
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm flex-fill fw-semibold" onclick="openMaintenanceModal(${Number(car.id)}, this.parentElement.dataset.title)">
+                                <i class="fa-solid fa-wrench me-1"></i>Service
+                            </button>
+                            <button class="btn btn-outline-success btn-sm flex-fill fw-semibold" onclick="openGasModal(${Number(car.id)}, this.parentElement.dataset.title)">
+                                <i class="fa-solid fa-gas-pump me-1"></i>Gas
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    async function updateNotes(carId) {
+        const notes = document.getElementById(`notes-${carId}`).value;
+        try {
+            await sendJson(`/api/cars/${carId}`, 'PUT', { notes });
+        } catch (err) { showError('Could not save notes', err); return; }
+        alert('Notes saved!');
+    }
+
+    async function deleteCar(carId) {
+        if(!confirm('Are you sure you want to remove this car?')) return;
+        try {
+            await api(`/api/cars/${carId}`, { method: 'DELETE' });
+        } catch (err) { showError('Could not delete car', err); return; }
+        loadGarage();
+    }
+
+    // crash modal
+    async function openCrashModal(carId, carTitle) {
+        activeCarId = carId;
+        document.getElementById('modalTitle').innerText = `Crash History - ${carTitle}`;
+        let crashes;
+        try {
+            crashes = await api(`/api/cars/${carId}/crashes`);
+        } catch (err) { showError('Could not load crash history', err); return; }
+
+        let listHtml = crashes.map(c => `
+            <div class="border-bottom py-2">
+                <div class="d-flex justify-content-between">
+                    <small class="text-muted">${esc(c.date)}</small>
+                    <span class="text-danger fw-bold">${esc(regionalCurrency)}${Number(c.cost || 0).toFixed(2)}</span>
+                </div>
+                <div class="small fw-semibold">${esc(c.description)}</div>
+            </div>
+        `).join('') || '<p class="text-muted">No crash incidents logged.</p>';
+
+        const today = localDateStr();
+        document.getElementById('modalBody').innerHTML = `
+            <div class="mb-4 bg-light p-3 rounded-3 border">
+                <h6 class="fw-bold">Log New Incident</h6>
+                <form onsubmit="addCrash(event)">
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label small mb-1" for="crashDate">Crash date</label>
+                            <input type="date" id="crashDate" class="form-control form-control-sm" max="${today}" value="${today}" required>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small mb-1" for="crashDesc">What happened?</label>
+                            <input type="text" id="crashDesc" class="form-control form-control-sm" placeholder="Description of repair" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small mb-1" for="crashCost">Cost (${esc(regionalCurrency)})</label>
+                            <input type="number" min="0" step="0.01" id="crashCost" class="form-control form-control-sm" placeholder="Cost (${esc(regionalCurrency)})" required>
+                        </div>
+                        <div class="col-12 mt-2">
+                            <button type="submit" class="btn btn-sm btn-danger w-100 fw-bold">Add Log</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <h6 class="fw-bold">Incident History</h6>
+            <div style="max-height: 250px; overflow-y: auto;">${listHtml}</div>
+        `;
+        showModal();
+    }
+
+    async function addCrash(e) {
+        e.preventDefault();
+        try {
+            await sendJson(`/api/cars/${activeCarId}/crashes`, 'POST', {
+                date: document.getElementById('crashDate').value,
+                cost: document.getElementById('crashCost').value,
+                description: document.getElementById('crashDesc').value
+            });
+        } catch (err) { showError('Could not save crash log', err); return; }
+        hideModal();
+        alert('Crash log added!');
+        loadGarage();
+    }
+
+    // maintenance modal
+    async function openMaintenanceModal(carId, carTitle) {
+        activeCarId = carId;
+        document.getElementById('modalTitle').innerText = `Maintenance History - ${carTitle}`;
+        let records;
+        try {
+            records = await api(`/api/cars/${carId}/maintenance`);
+        } catch (err) { showError('Could not load service history', err); return; }
+
+        let listHtml = records.map(m => `
+            <div class="border-bottom py-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-bold">${esc(m.service_type)}</span>
+                    <span class="text-primary fw-bold">${esc(regionalCurrency)}${Number(m.cost || 0).toFixed(2)}</span>
+                </div>
+                <div class="d-flex justify-content-between text-muted small mt-1">
+                    <span>Odometer: ${esc(m.odometer)} ${regionalUnit === 'L' ? 'km' : 'mi'}</span>
+                    <span>${esc(m.date)}</span>
+                </div>
+                ${m.notes ? `<div class="small text-secondary mt-1">${esc(m.notes)}</div>` : ''}
+            </div>
+        `).join('') || '<p class="text-muted">No maintenance records logged.</p>';
+
+        document.getElementById('modalBody').innerHTML = `
+            <div class="mb-4 bg-light p-3 rounded-3 border">
+                <h6 class="fw-bold">Log Service or Maintenance</h6>
+                <form onsubmit="addMaintenance(event)">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1 fw-semibold">Service Type</label>
+                            <input type="text" id="maintType" class="form-control form-control-sm" placeholder="e.g. Oil Change" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small mb-1 fw-semibold">Odometer</label>
+                            <input type="number" step="0.1" id="maintOdo" class="form-control form-control-sm" placeholder="120000" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small mb-1 fw-semibold">Cost (${esc(regionalCurrency)})</label>
+                            <input type="number" step="0.01" id="maintCost" class="form-control form-control-sm" placeholder="150" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small mb-1 fw-semibold">Notes / Parts Used</label>
+                            <input type="text" id="maintNotes" class="form-control form-control-sm" placeholder="e.g. 5W-30 Synthetic">
+                        </div>
+                        <div class="col-12 mt-2">
+                            <button type="submit" class="btn btn-sm btn-primary w-100 fw-bold">Add Record</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <h6 class="fw-bold">Service Logs</h6>
+            <div style="max-height: 250px; overflow-y: auto;">${listHtml}</div>
+        `;
+        showModal();
+    }
+
+    async function addMaintenance(e) {
+        e.preventDefault();
+        try {
+            await sendJson(`/api/cars/${activeCarId}/maintenance`, 'POST', {
+                service_type: document.getElementById('maintType').value,
+                odometer: document.getElementById('maintOdo').value,
+                cost: document.getElementById('maintCost').value,
+                notes: document.getElementById('maintNotes').value
+            });
+        } catch (err) { showError('Could not save maintenance record', err); return; }
+        hideModal();
+        alert('Maintenance record added!');
+    }
+
+    // gas logs and trend chart
+    async function openGasModal(carId, carTitle) {
+        activeCarId = carId;
+        document.getElementById('modalTitle').innerText = `Gas Logs & Trends - ${carTitle}`;
+        let logs;
+        try {
+            logs = await api(`/api/cars/${carId}/gas`);
+        } catch (err) { showError('Could not load gas logs', err); return; }
+
+        const distLabel = regionalUnit === 'L' ? 'km' : 'mi';
+        let totalDist = 0, totalFuel = 0, totalSpent = 0;
+
+        logs.forEach(l => {
+            totalDist += Number(l.distance);
+            totalFuel += Number(l.fuel_amount);
+            totalSpent += (Number(l.fuel_amount) * Number(l.price_per_unit));
+        });
+
+        let efficiencyText = 'N/A';
+        if(totalFuel > 0 && totalDist > 0) {
+            efficiencyText = regionalUnit === 'L'
+                ? `${((totalFuel / totalDist) * 100).toFixed(1)} L/100km`
+                : `${(totalDist / totalFuel).toFixed(1)} MPG`;
+        }
+
+        let listHtml = logs.map(l => {
+            const cost = (Number(l.fuel_amount) * Number(l.price_per_unit)).toFixed(2);
+            return `
+                <div class="border-bottom py-2 small">
+                    <div class="d-flex justify-content-between">
+                        <span><b>${esc(l.date)}</b></span>
+                        <span class="text-success fw-bold">${esc(regionalCurrency)}${cost}</span>
+                    </div>
+                    <div class="text-muted">
+                        ${esc(l.distance)} ${distLabel} | ${esc(l.fuel_amount)} ${esc(regionalUnit)} @ ${esc(regionalCurrency)}${Number(l.price_per_unit).toFixed(2)}/${esc(regionalUnit)}
+                    </div>
+                </div>
+            `;
+        }).join('') || '<p class="text-muted">No gas logs recorded yet.</p>';
+
+        document.getElementById('modalBody').innerHTML = `
+            <div class="row text-center mb-3">
+                <div class="col-4">
+                    <div class="p-2 bg-light rounded-3 border">
+                        <small class="text-muted fw-semibold">Total Distance</small>
+                        <h6 class="fw-bold mb-0">${totalDist.toFixed(1)} ${distLabel}</h6>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="p-2 bg-light rounded-3 border">
+                        <small class="text-muted fw-semibold">Avg Efficiency</small>
+                        <h6 class="fw-bold mb-0">${efficiencyText}</h6>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="p-2 bg-light rounded-3 border">
+                        <small class="text-muted fw-semibold">Total Fuel Cost</small>
+                        <h6 class="text-success fw-bold mb-0">${esc(regionalCurrency)}${totalSpent.toFixed(2)}</h6>
+                    </div>
+                </div>
+            </div>
+
+            ${logs.length > 0 ? '<div class="mb-3 p-2 border rounded-3"><canvas id="fuelChart" height="130"></canvas></div>' : ''}
+
+            <div class="mb-4 bg-light p-3 rounded-3 border">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="fw-bold mb-0">Log Fill-Up</h6>
+                    <small class="text-muted">Current Rate: <b>${esc(regionalCurrency)}${regionalGasPrice.toFixed(2)} / ${esc(regionalUnit)}</b></small>
+                </div>
+                <form onsubmit="addGas(event)">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1 fw-semibold">Distance Driven (${distLabel})</label>
+                            <input type="number" step="0.1" id="gasDistance" class="form-control form-control-sm" placeholder="e.g. 450" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1 fw-semibold">Fuel Added (${esc(regionalUnit)})</label>
+                            <input type="number" step="0.01" id="gasFuel" class="form-control form-control-sm" placeholder="e.g. 40" required>
+                        </div>
+                        <div class="col-12 mt-2">
+                            <button type="submit" class="btn btn-sm btn-success w-100 fw-bold">Log Fuel Entry</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <h6 class="fw-bold">Fuel History</h6>
+            <div style="max-height: 180px; overflow-y: auto;">${listHtml}</div>
+        `;
+
+        showModal();
+
+        if (logs.length > 0) {
+            setTimeout(() => {
+                const ctx = document.getElementById('fuelChart');
+                if (ctx) {
+                    if (activeChart) activeChart.destroy();
+                    const sortedLogs = [...logs].reverse();
+                    const labels = sortedLogs.map(l => String(l.date).split(' ')[0]);
+                    const costs = sortedLogs.map(l => (Number(l.fuel_amount) * Number(l.price_per_unit)).toFixed(2));
+
+                    activeChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: `Fuel Cost (${regionalCurrency})`,
+                                data: costs,
+                                borderColor: '#10b981',
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                fill: true,
+                                tension: 0.3
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true } }
+                        }
+                    });
+                }
+            }, 200);
+        }
+    }
+
+    async function addGas(e) {
+        e.preventDefault();
+        try {
+            await sendJson(`/api/cars/${activeCarId}/gas`, 'POST', {
+                distance: document.getElementById('gasDistance').value,
+                fuel_amount: document.getElementById('gasFuel').value
+            });
+        } catch (err) { showError('Could not log fuel entry', err); return; }
+        hideModal();
+        alert('Gas entry logged!');
+    }
+</script>
+</body>
+</html>
